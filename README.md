@@ -1,4 +1,4 @@
-# MCP Server Request Generator
+# Request body/parameters Generator
 
 This tool is a Streamlit web application that generates sample API request bodies from a provided OpenAPI (YAML) specification. It leverages the power of Google's Gemini large language model to understand natural language prompts and create accurate JSON examples.
 
