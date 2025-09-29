@@ -21,8 +21,8 @@ Before you begin, ensure you have the following:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/ranjithmadheswaran/mcp_server.git
-    cd mcp_server
+    git clone https://github.com/ranjithmadheswaran/swaggerRequestGenerator.git
+    cd swaggerRequestGenerator
     ```
 
 2.  **Create and activate a virtual environment (recommended):**
@@ -43,7 +43,7 @@ Before you begin, ensure you have the following:
 
 ## How to Run
 
-1.  Navigate to the project's root directory (`mcp_server`).
+1.  Navigate to the project's root directory (`swaggerRequestGenerator`).
 2.  Run the Streamlit application from your terminal:
     ```bash
     streamlit run src/requestCreator.py
@@ -61,7 +61,7 @@ Before you begin, ensure you have the following:
 ## Project Structure
 
 ```
-mcp_server/
+swaggerRequestGenerator/
 ├── src/
 │   └── requestCreator.py             # The core Streamlit application logic
 ├── petStore.yaml          # An example OpenAPI specification file
