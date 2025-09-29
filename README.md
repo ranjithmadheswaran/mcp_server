@@ -46,7 +46,7 @@ Before you begin, ensure you have the following:
 1.  Navigate to the project's root directory (`mcp_server`).
 2.  Run the Streamlit application from your terminal:
     ```bash
-    streamlit run src/app.py
+    streamlit run src/requestCreator.py
     ```
 3.  Your web browser should automatically open a new tab with the running application.
 
