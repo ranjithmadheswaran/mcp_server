@@ -21,7 +21,7 @@ Before you begin, ensure you have the following:
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/ranjithmadheswaran/mcp_server.git
     cd mcp_server
     ```
 
@@ -63,7 +63,7 @@ Before you begin, ensure you have the following:
 ```
 mcp_server/
 ├── src/
-│   └── app.py             # The core Streamlit application logic
+│   └── requestCreator.py             # The core Streamlit application logic
 ├── petStore.yaml          # An example OpenAPI specification file
 ├── requirements.txt       # Python dependencies
 └── README.md              # This file
