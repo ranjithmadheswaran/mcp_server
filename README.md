@@ -5,9 +5,13 @@ This tool is a Streamlit web application that generates sample API request bodie
 ## Features
 
 - **Intuitive Web Interface**: Built with Streamlit for a clean and simple user experience.
+- **Tabbed Interface**: For easy navigation between different functionalities.
 - **Dynamic OpenAPI Parsing**: Upload any OpenAPI 3.0 specification in YAML format.
 - **Natural Language Prompts**: Instead of manually searching for endpoints, simply describe the request you need (e.g., "add a new pet to the store").
 - **AI-Powered Generation**: Uses the Google Gemini API to intelligently generate a valid JSON request body with realistic example values.
+- **AI-Powered Specification Analysis**: Ask natural language questions about your API spec and get instant answers.
+- **Interactive Swagger Editor**: Visualize and interact with your API specification directly within the app.
+- **Raw Spec Viewer**: A simple text area to view the full content of your uploaded file.
 - **Error Handling**: Provides feedback for API rate limits and other potential issues.
 
 ## Prerequisites
@@ -52,11 +56,14 @@ Before you begin, ensure you have the following:
 
 ## How to Use
 
-1.  **Enter API Key**: Paste your Google AI API Key into the first input field.
-2.  **Upload Spec**: Click the "Browse files" button to upload your OpenAPI `.yaml` or `.yml` file. The application will confirm once it's successfully parsed.
-3.  **Describe Request**: In the text input field, describe the API operation for which you want to generate a request (e.g., "Find pets by status" or "create a new user").
-4.  **Generate**: Click the "Generate Request" button.
-5.  **View Result**: The generated JSON request body will appear below the button.
+1.  **Enter API Key**: Paste your Google AI API Key into the input field. The application will fetch the list of models available to you.
+2.  **Select a Model**: Choose a generative model from the dropdown list. The application will attempt to select a powerful default like `gemini-2.5-flash` or `gemini-pro` if available.
+3.  **Upload Spec**: Click the "Browse files" button to upload your OpenAPI `.yaml` or `.yml` file.
+4.  **Interact with Tabs**: Once the file is parsed, you can use the tabs for different actions:
+    -   **Generate Request**: Describe the API operation you need and click "Generate Request" to get a JSON example.
+    -   **Analyze Specification**: Ask a question about the API (e.g., "What endpoints are available for users?") and click "Analyze" to get a summary from the AI.
+    -   **Swagger Editor**: View and interact with your API in an embedded, interactive editor. For very large files, you may be prompted to use a Gist.
+    -   **View Specification**: See the raw YAML content of your uploaded file.
 
 ## Project Structure
 
