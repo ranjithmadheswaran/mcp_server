@@ -30,6 +30,15 @@ def get_gemini_response(model, prompt_text):
             "This is common on the free tier. See the link in the error details for more information on quotas."
         )
         return None, (error_message, e)
+    except exceptions.NotFound as e:
+        logging.error(f"Model not found: {e}", exc_info=True)        
+        error_message = (
+            f"The selected model `{model.model_name}` was not found for your API key or region. "
+            "This can happen if the model is not available in your region. "
+            "Please try selecting a different model from the dropdown."
+        )
+        return None, (error_message, None)
+
     except Exception as e:
         logging.error("An unexpected error occurred during generation.", exc_info=True)
         error_message = f"An unexpected error occurred while generating the response: {e}"
@@ -38,22 +47,61 @@ def get_gemini_response(model, prompt_text):
 
 api_key = st.text_input("Enter your Google AI API Key to begin", type="password")
 
-if not api_key:
+# Initialize session state
+if "api_key" not in st.session_state:
+    st.session_state.api_key = ""
+if "models_list" not in st.session_state:
+    st.session_state.models_list = []
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = None
+
+# Fetch models if a new API key is entered
+if api_key and api_key != st.session_state.api_key:
+    st.session_state.api_key = api_key
+    st.session_state.models_list = []
+    st.session_state.selected_model = None
+    try:
+        genai.configure(api_key=api_key)
+        with st.spinner("Fetching available models..."):
+            st.session_state.models_list = [
+                m.name for m in genai.list_models() 
+                if 'generateContent' in m.supported_generation_methods
+            ]
+            # Set a preferred default model if available
+            preferred_models = ["models/gemini-2.5-flash", "models/gemini-pro"]
+            for model in preferred_models:
+                if model in st.session_state.models_list:
+                    st.session_state.selected_model = model
+                    break
+            if not st.session_state.selected_model and st.session_state.models_list:
+                st.session_state.selected_model = st.session_state.models_list[0]
+
+    except Exception as e:
+        st.error(f"Failed to configure Google AI or fetch models. Please check your API key. Error: {e}")
+        st.session_state.api_key = "" # Reset to allow re-entry
+
+if not st.session_state.api_key:
     st.warning("Please enter your Google AI API Key to use the generator.")
-    logging.warning("API key not entered. Stopping execution.")
     st.stop()
 
-try:
-    genai.configure(api_key=api_key)
-    model_name = "gemini-2.5-flash"  # A powerful and efficient model
-    model = genai.GenerativeModel(model_name)
-    st.info(f"Using model: `{model_name}`")
-    logging.info(f"Successfully configured Google AI with model: {model_name}")
-        
-except Exception as e:
-    st.error(f"An error occurred while configuring the Google AI model: {e}")
-    logging.error(f"Failed to configure Google AI model: {e}", exc_info=True)
+if not st.session_state.models_list:
+    st.warning("No compatible models found for this API key. Please check your Google AI project and permissions.")
     st.stop()
+
+# Determine the default index for the selectbox
+try:
+    default_index = st.session_state.models_list.index(st.session_state.selected_model)
+except (ValueError, TypeError):
+    default_index = 0
+
+# Let the user select a model
+st.session_state.selected_model = st.selectbox(
+    "Select a Model", 
+    st.session_state.models_list,
+    index=default_index
+)
+
+model = genai.GenerativeModel(st.session_state.selected_model)
 
 uploaded_file = st.file_uploader("Upload your OpenAPI specification file", type=["yaml", "yml"])
 
@@ -140,9 +188,9 @@ if uploaded_file is not None:
             # We use a hybrid approach: direct embedding for small files, Gist for large ones.
             if len(string_data.encode('utf-8')) < 4096:
                 # For small specs, encode and embed directly in the URL for a seamless experience.
-                # We must URL-encode the spec, not Base64-encode it.
-                encoded_spec = urllib.parse.quote(string_data)
-                editor_url = f"https://editor-next.swagger.io/?spec={encoded_spec}"                
+                # The spec must be URL-encoded.
+                url_encoded_spec = urllib.parse.quote(string_data)
+                editor_url = f"https://editor-next.swagger.io/?spec={url_encoded_spec}"
                 st.components.v1.iframe(editor_url, height=1000, scrolling=True)
             else:
                 # For large specs, instruct the user to use a Gist to prevent errors.
