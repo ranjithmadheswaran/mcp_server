@@ -114,7 +114,7 @@ if uploaded_file is not None:
         logging.info(f"Successfully parsed uploaded file: {uploaded_file.name}")
         
         # Create tabs for different actions        
-        generate_tab, analyze_tab, editor_tab, view_spec_tab = st.tabs(["Generate Request", "Analyze Specification", "Swagger Editor", "View Specification"])
+        generate_tab, analyze_tab, erp_tab, editor_tab, view_spec_tab = st.tabs(["Generate Request", "Analyze Specification", "ERP Integration", "Swagger Editor", "View Specification"])
 
         with generate_tab:
             user_prompt = st.text_input(
@@ -180,6 +180,46 @@ if uploaded_file is not None:
                             st.error(error[0])
                         else:
                             st.markdown("### Analysis Result")
+                            st.markdown(response_text)
+
+        with erp_tab:
+            st.subheader("Generate ERP Integration Code")
+            st.markdown("Generate a code snippet to integrate the API with an ERP system.")
+
+            erp_prompt = st.text_input(
+                "Describe the integration logic (e.g., 'sync new pets to our ERP as products')",
+                key="erp_prompt"
+            )
+            erp_language = st.text_input(
+                "Specify the language or ERP system (e.g., 'Python', 'SAP ABAP', 'NetSuite SuiteScript')",
+                key="erp_language"
+            )
+
+            if st.button("Generate Integration Code"):
+                if not erp_prompt or not erp_language:
+                    st.warning("Please describe the integration logic and specify the language/system.")
+                else:
+                    with st.spinner("Generating integration code..."):
+                        logging.info(f"Generating ERP integration for prompt: '{erp_prompt}' in '{erp_language}'")
+                        erp_full_prompt = "\n".join([
+                            "You are a world-class ERP integration specialist. Your task is to write integration code that connects a system described by an OpenAPI specification to an ERP system.",
+                            f"The user wants to generate code in '{erp_language}'.",
+                            "",
+                            "Based on the following OpenAPI 3.0 specification, write a code snippet that accomplishes the user's goal.",
+                            "OpenAPI Specification:",
+                            "```yaml",
+                            string_data,
+                            "```",
+                            f"User's Goal: \"{erp_prompt}\"",
+                            "",
+                            "Provide a complete, well-commented code snippet that is ready to be used. Explain the purpose of the code and any prerequisites (like libraries to install)."
+                        ])
+
+                        response_text, error = get_gemini_response(model, erp_full_prompt)
+                        if error:
+                            st.error(error[0])
+                        else:
+                            st.markdown("### Generated Integration Code")
                             st.markdown(response_text)
         
         with editor_tab:
