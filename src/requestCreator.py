@@ -54,6 +54,8 @@ if "models_list" not in st.session_state:
     st.session_state.models_list = []
 if "selected_model" not in st.session_state:
     st.session_state.selected_model = None
+if "current_file_name" not in st.session_state:
+    st.session_state.current_file_name = None
 
 # Fetch models if a new API key is entered
 if api_key and api_key != st.session_state.api_key:
@@ -111,12 +113,26 @@ if uploaded_file is not None:
         string_data = uploaded_file.getvalue().decode("utf-8")
         spec = yaml.safe_load(string_data)
         st.success("OpenAPI specification loaded and parsed successfully!")
+        # Reset history only if a new file is uploaded
+        if uploaded_file.name != st.session_state.current_file_name:
+            st.session_state.current_file_name = uploaded_file.name
+            st.session_state.analysis_history = []
+            st.session_state.generate_history = []
+            st.session_state.erp_history = []
+
+
+
         logging.info(f"Successfully parsed uploaded file: {uploaded_file.name}")
         
         # Create tabs for different actions        
         generate_tab, analyze_tab, erp_tab, editor_tab, view_spec_tab = st.tabs(["Generate Request", "Analyze Specification", "ERP Integration", "Swagger Editor", "View Specification"])
 
         with generate_tab:
+            # Display previous generations
+            for item in st.session_state.generate_history:
+                st.markdown(f"**Your Request:** `{item['prompt']}`")
+                st.code(item['response'], language="json")
+                st.divider()
             user_prompt = st.text_input(
                 "Describe the request you want to generate (e.g., 'add a new pet to the store')",
                 key="user_prompt",
@@ -148,43 +164,60 @@ if uploaded_file is not None:
                             if error[1]:
                                 st.exception(error[1])
                         else:
-                            st.markdown("### Generated Request")
-                            st.code(response_text, language="json")
+                            st.session_state.generate_history.append({"prompt": user_prompt, "response": response_text})
+                            # The script will rerun automatically after the button press, no need for forceful rerun.
         
         with analyze_tab:
             st.subheader("Analyze OpenAPI Specification")
-            analysis_prompt = st.text_input(
-                "What would you like to know about this specification? (e.g., 'What endpoints are available for pets?')",
-                key="analysis_prompt",
-            )
+            st.markdown("Ask questions about your API specification in a conversational manner.")
 
-            if st.button("Analyze"):
-                if not analysis_prompt:
-                    st.warning("Please enter a question about the specification.")
-                    logging.warning("Analyze button clicked but analysis prompt was empty.")
-                else:
-                    with st.spinner("Analyzing..."):
-                        logging.info(f"Analyzing specification for prompt: '{analysis_prompt}'")
+            # Display existing chat messages
+            for message in st.session_state.analysis_history:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            # Chat input for new messages
+            if analysis_prompt := st.chat_input("What would you like to know?"):
+                # Add user message to history and display it
+                st.session_state.analysis_history.append({"role": "user", "content": analysis_prompt})
+                with st.chat_message("user"):
+                    st.markdown(analysis_prompt)
+
+                # Generate and display assistant response
+                with st.chat_message("assistant"):
+                    with st.spinner("Thinking..."):
+                        # Construct the prompt with history
+                        history_context = "\n".join([f"**{m['role']}**: {m['content']}" for m in st.session_state.analysis_history])
                         analysis_full_prompt = "\n".join([
-                            "You are an expert API assistant. Your task is to analyze the provided OpenAPI 3.0 specification and answer the user's question about it in a clear and concise way.",
+                            "You are an expert API assistant. Your task is to analyze the provided OpenAPI 3.0 specification and answer the user's questions about it in a clear and concise way.",
+                            "You must maintain a conversational context based on the chat history provided.",
                             "",
                             "OpenAPI Specification:",
                             "```yaml",
                             string_data,
                             "```",
-                            f"User's Question: \"{analysis_prompt}\""
+                            "---",
+                            "Chat History:",
+                            history_context,
+                            "---"
                         ])
-                        
+
                         response_text, error = get_gemini_response(model, analysis_full_prompt)
                         if error:
                             st.error(error[0])
                         else:
-                            st.markdown("### Analysis Result")
                             st.markdown(response_text)
+                            st.session_state.analysis_history.append({"role": "assistant", "content": response_text})
 
         with erp_tab:
             st.subheader("Generate ERP Integration Code")
             st.markdown("Generate a code snippet to integrate the API with an ERP system.")
+
+            # Display previous generations
+            for item in st.session_state.erp_history:
+                st.markdown(f"**Your Request:** `{item['prompt']}` for `{item['language']}`")
+                st.markdown(item['response'])
+                st.divider()
 
             erp_prompt = st.text_input(
                 "Describe the integration logic (e.g., 'sync new pets to our ERP as products')",
@@ -219,8 +252,12 @@ if uploaded_file is not None:
                         if error:
                             st.error(error[0])
                         else:
-                            st.markdown("### Generated Integration Code")
-                            st.markdown(response_text)
+                            st.session_state.erp_history.append({
+                                "prompt": erp_prompt, 
+                                "language": erp_language, 
+                                "response": response_text
+                            })
+                            # The script will rerun automatically after the button press, no need for forceful rerun.
         
         with editor_tab:
             st.subheader("Interactive Swagger Editor")
