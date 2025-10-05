@@ -1,4 +1,9 @@
 
+import os
+# Suppress a harmless warning from the gRPC library.
+# This should be set before other imports, especially google.generativeai.
+os.environ['GRPC_VERBOSITY'] = 'ERROR'
+
 import streamlit as st
 import yaml
 import google.generativeai as genai
@@ -9,6 +14,7 @@ import urllib.parse
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.info("Application starting up and logging configured.")
 
 # --- Streamlit App ---
 st.set_page_config(layout="wide")
@@ -21,7 +27,9 @@ st.write(
 def get_gemini_response(model, prompt_text):
     """Generates content using the Gemini model with error handling."""
     try:
+        logging.info(f"Sending prompt to model {model.model_name}.")
         response = model.generate_content(prompt_text)
+        logging.info(f"Successfully received response from model {model.model_name}.")
         return response.text, None
     except exceptions.ResourceExhausted as e:
         logging.error("API rate limit exceeded.", exc_info=True)
@@ -59,6 +67,7 @@ if "current_file_name" not in st.session_state:
 
 # Fetch models if a new API key is entered
 if api_key and api_key != st.session_state.api_key:
+    logging.info("New API key entered. Resetting session and fetching models.")
     st.session_state.api_key = api_key
     st.session_state.models_list = []
     st.session_state.selected_model = None
@@ -69,25 +78,38 @@ if api_key and api_key != st.session_state.api_key:
                 m.name for m in genai.list_models() 
                 if 'generateContent' in m.supported_generation_methods
             ]
+            logging.info(f"Found {len(st.session_state.models_list)} compatible models.")
             # Set a preferred default model if available
             preferred_models = ["models/gemini-2.5-flash", "models/gemini-pro"]
             for model in preferred_models:
                 if model in st.session_state.models_list:
                     st.session_state.selected_model = model
+                    logging.info(f"Set preferred model to: {model}")
                     break
             if not st.session_state.selected_model and st.session_state.models_list:
                 st.session_state.selected_model = st.session_state.models_list[0]
+
+    except (exceptions.DeadlineExceeded, exceptions.ServiceUnavailable) as e:
+        error_message = (
+            "A network error occurred while trying to connect to Google AI. "
+            "This could be due to a firewall, proxy, or DNS issue. "
+            "Please check your network connection and try again."
+        )
+        st.error(error_message)
+        logging.error(f"Network error during model fetching: {e}", exc_info=True)
+        st.session_state.api_key = "" # Reset to allow re-entry
 
     except Exception as e:
         st.error(f"Failed to configure Google AI or fetch models. Please check your API key. Error: {e}")
         st.session_state.api_key = "" # Reset to allow re-entry
 
-if not st.session_state.api_key:
-    st.warning("Please enter your Google AI API Key to use the generator.")
-    st.stop()
-
+# Stop if API key is not valid or no models were found
 if not st.session_state.models_list:
-    st.warning("No compatible models found for this API key. Please check your Google AI project and permissions.")
+    if not st.session_state.api_key:
+        st.warning("Please enter your Google AI API Key to use the generator.")
+    else:
+        # This message shows if the key was entered but no models were found
+        st.warning("No compatible models found for this API key. Please check your Google AI project and permissions.")
     st.stop()
 
 # Determine the default index for the selectbox
@@ -102,12 +124,19 @@ st.session_state.selected_model = st.selectbox(
     st.session_state.models_list,
     index=default_index
 )
+logging.info(f"Model selected by user: {st.session_state.selected_model}")
 
-model = genai.GenerativeModel(st.session_state.selected_model)
+# Ensure a model is selected and instantiate it
+if not st.session_state.selected_model:
+    st.warning("Please select a model to continue.")
+    st.stop()
+else:
+    model = genai.GenerativeModel(model_name=st.session_state.selected_model)
 
 uploaded_file = st.file_uploader("Upload your OpenAPI specification file", type=["yaml", "yml"])
 
 if uploaded_file is not None:
+    logging.info(f"File uploaded: {uploaded_file.name}, size: {uploaded_file.size} bytes.")
     # To read file as string:
     try:
         string_data = uploaded_file.getvalue().decode("utf-8")
@@ -115,6 +144,7 @@ if uploaded_file is not None:
         st.success("OpenAPI specification loaded and parsed successfully!")
         # Reset history only if a new file is uploaded
         if uploaded_file.name != st.session_state.current_file_name:
+            logging.info("New file detected. Clearing session history for all tabs.")
             st.session_state.current_file_name = uploaded_file.name
             st.session_state.analysis_history = []
             st.session_state.generate_history = []
@@ -128,6 +158,7 @@ if uploaded_file is not None:
         generate_tab, analyze_tab, erp_tab, editor_tab, view_spec_tab = st.tabs(["Generate Request", "Analyze Specification", "ERP Integration", "Swagger Editor", "View Specification"])
 
         with generate_tab:
+            logging.info("User is on the 'Generate Request' tab.")
             # Display previous generations
             for item in st.session_state.generate_history:
                 st.markdown(f"**Your Request:** `{item['prompt']}`")
@@ -168,6 +199,7 @@ if uploaded_file is not None:
                             # The script will rerun automatically after the button press, no need for forceful rerun.
         
         with analyze_tab:
+            logging.info("User is on the 'Analyze Specification' tab.")
             st.subheader("Analyze OpenAPI Specification")
             st.markdown("Ask questions about your API specification in a conversational manner.")
 
@@ -178,6 +210,7 @@ if uploaded_file is not None:
 
             # Chat input for new messages
             if analysis_prompt := st.chat_input("What would you like to know?"):
+                logging.info(f"User asked a question in analysis tab: '{analysis_prompt}'")
                 # Add user message to history and display it
                 st.session_state.analysis_history.append({"role": "user", "content": analysis_prompt})
                 with st.chat_message("user"):
@@ -210,6 +243,7 @@ if uploaded_file is not None:
                             st.session_state.analysis_history.append({"role": "assistant", "content": response_text})
 
         with erp_tab:
+            logging.info("User is on the 'ERP Integration' tab.")
             st.subheader("Generate ERP Integration Code")
             st.markdown("Generate a code snippet to integrate the API with an ERP system.")
 
@@ -260,11 +294,13 @@ if uploaded_file is not None:
                             # The script will rerun automatically after the button press, no need for forceful rerun.
         
         with editor_tab:
+            logging.info("User is on the 'Swagger Editor' tab.")
             st.subheader("Interactive Swagger Editor")
             # URL encoding is not safe for large specs (>~4KB), which can cause a 414 error.
             # We use a hybrid approach: direct embedding for small files, Gist for large ones.
             if len(string_data.encode('utf-8')) < 4096:
                 # For small specs, encode and embed directly in the URL for a seamless experience.
+                logging.info("Spec size is small. Embedding directly in Swagger Editor.")
                 # The spec must be URL-encoded.
                 url_encoded_spec = urllib.parse.quote(string_data)
                 editor_url = f"https://editor-next.swagger.io/?spec={url_encoded_spec}"
@@ -272,6 +308,7 @@ if uploaded_file is not None:
             else:
                 # For large specs, instruct the user to use a Gist to prevent errors.
                 st.warning("Your OpenAPI specification is too large to be embedded directly.")
+                logging.warning("Spec size is large. Prompting user for Gist URL for Swagger Editor.")
                 st.markdown("""
                     To view it in the Swagger Editor, please follow these steps as a workaround:
                     1. **Create a public Gist** on GitHub Gist.
@@ -282,14 +319,18 @@ if uploaded_file is not None:
                 """)
                 gist_url = st.text_input("Enter the Raw URL of your public Gist")
                 if gist_url:
+                    logging.info(f"User provided Gist URL: {gist_url}")
                     # Use the 'url' parameter to load the spec from the Gist.
                     editor_url = f"https://editor-next.swagger.io/?url={urllib.parse.quote(gist_url)}"
                     st.components.v1.iframe(editor_url, height=1000, scrolling=True)
 
         with view_spec_tab:
+            logging.info("User is on the 'View Specification' tab.")
             st.text_area("YAML Content", string_data, height=400)
 
     except yaml.YAMLError as e:
+        logging.error("YAML parsing failed.", exc_info=True)
         st.error(f"Error parsing YAML file: {e}")
     except Exception as e:
+        logging.error("An unexpected error occurred in the main block.", exc_info=True)
         st.error(f"An error occurred: {e}")
